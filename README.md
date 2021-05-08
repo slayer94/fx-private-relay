@@ -11,7 +11,12 @@ them](https://www.facebook.com/business/help/606443329504150?helpref=faq_content
 ## Development
 ### Requirements
 * python 3.7 (suggest using
-  [virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/))
+  [virtualenv](https://docs.python-guide.org/dev/virtualenvs/))
+* Postgres - even if you are using sqlite for development, requirements.txt installs
+  psycopg2 which [requires libpq](https://www.psycopg.org/docs/install.html#build-prerequisites). The 
+  following should work:
+    * On Ubuntu: `sudo apt install postgresql libpq-dev`
+    * On OSX: `brew install postgresql libpq`
 * [SES](https://aws.amazon.com/ses/) if you want to send real emails
 
 ### Install and Run the Site Locally
@@ -36,7 +41,7 @@ them](https://www.facebook.com/business/help/606443329504150?helpref=faq_content
     ```
 
 4. Copy `.env` file for
-   [`decouple`](https://pypi.python.org/pypi/python-decouple) config:
+   [`decouple`](https://pypi.org/project/python-decouple/) config:
 
     ```sh
     cp .env-dist .env
@@ -87,7 +92,7 @@ superuser account you created above, and add a social app for Firefox Accounts:
 
    * Provider: Firefox Accounts
    * Name: oauth-stable.dev.lcip.org
-   * Client id: 7477974d5019bdaf
+   * Client id: 9ebfe2c2f9ea3c58
    * Secret key: ping groovecoder for this
    * Sites: 127.0.0.1:8000 -> Chosen sites
 

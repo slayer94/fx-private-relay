@@ -7,7 +7,6 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.utils import parseaddr
 import json
-import os
 
 from botocore.exceptions import ClientError
 import markus
@@ -48,7 +47,7 @@ def histogram_if_enabled(name, value, tags=None):
 def ses_send_email(from_address, to_address, subject, message_body):
     emails_config = apps.get_app_config('emails')
     try:
-        ses_response = emails_config.ses_client.send_email(
+        emails_config.ses_client.send_email(
             Destination={'ToAddresses': [to_address]},
             Message={
                 'Body': message_body,
@@ -116,7 +115,7 @@ def ses_send_raw_email(
     try:
         # Provide the contents of the email.
         emails_config = apps.get_app_config('emails')
-        response = emails_config.ses_client.send_raw_email(
+        emails_config.ses_client.send_raw_email(
             Source=from_address,
             Destinations=[
                 to_address
@@ -132,18 +131,14 @@ def ses_send_raw_email(
     return HttpResponse("Sent email to final recipient.", status=200)
 
 
-def ses_relay_email(
-        from_address, relay_address, subject, message_body, attachments
-):
-    relay_from_address, relay_from_display = generate_relay_From(from_address)
-    formatted_from_address = str(
-        Address(relay_from_display, addr_spec=relay_from_address)
-    )
+def ses_relay_email(from_address, address, subject,
+                    message_body, attachments, user_email):
+    formatted_from_address = generate_relay_From(from_address)
     try:
         if attachments:
             response = ses_send_raw_email(
                 formatted_from_address,
-                relay_address.user.email,
+                user_email,
                 subject,
                 message_body,
                 attachments
@@ -151,13 +146,15 @@ def ses_relay_email(
         else:
             response = ses_send_email(
                 formatted_from_address,
-                relay_address.user.email,
+                user_email,
                 subject,
                 message_body
             )
-        relay_address.num_forwarded += 1
-        relay_address.last_used_at = datetime.now(timezone.utc)
-        relay_address.save(update_fields=['num_forwarded', 'last_used_at'])
+        address.num_forwarded += 1
+        address.last_used_at = datetime.now(timezone.utc)
+        address.save(
+            update_fields=['num_forwarded', 'last_used_at']
+        )
         return response
     except ClientError as e:
         logger.error('ses_client_error', extra=e.response['Error'])
@@ -181,7 +178,28 @@ def generate_relay_From(original_from_address):
     relay_display_name, relay_from_address = parseaddr(
         settings.RELAY_FROM_ADDRESS
     )
+    # RFC 2822 (https://tools.ietf.org/html/rfc2822#section-2.1.1)
+    # says email header lines must not be more than 998 chars long.
+    # Encoding display names to longer than 998 chars will add wrap
+    # characters which are unsafe. (See https://bugs.python.org/issue39073)
+    # So, truncate the original sender to 900 chars so we can add our
+    # "[via Relay] <relayfrom>" and encode it all.
+    if len(original_from_address) > 998:
+        original_from_address = '%s ...' % original_from_address[:900]
+    # line breaks in From: will encode to unsafe chars, so strip them.
+    original_from_address = (
+        original_from_address
+        .replace('\u2028', '')
+        .replace('\r', '')
+        .replace('\n', '')
+    )
+
     display_name = Header(
         '"%s [via Relay]"' % (original_from_address), 'UTF-8'
     )
-    return relay_from_address, display_name.encode()
+    formatted_from_address = str(
+        Address(
+            display_name.encode(maxlinelen=998), addr_spec=relay_from_address
+        )
+    )
+    return formatted_from_address

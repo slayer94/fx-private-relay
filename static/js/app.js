@@ -1,5 +1,3 @@
-/* global sendGaPing */
-
 function dismissNotification() {
 	const notification = document.querySelector(".js-notification");
 	notification.classList.toggle("hidden");
@@ -37,7 +35,7 @@ async function updateEmailForwardingPrefs(submitEvent) {
   const forwardingPrefForm = submitEvent.target;
   const prefToggle = forwardingPrefForm.querySelector("button");
   const toggleLabel = forwardingPrefForm.querySelector(".forwarding-label-wrapper");
-  const addressId = forwardingPrefForm.querySelector("[name='relay_address_id']");
+  const addressId = forwardingPrefForm.querySelector("[name='relay_address_id']") || forwardingPrefForm.querySelector("[name='domain_address_id']");
   const wrappingEmailCard = document.querySelector(`[data-relay-address-id='${addressId.value}']`);
 
   const analyticsLabel = (prefToggle.value === "Disable") ? "User disabled forwarding" : "User enabled forwarding";
@@ -72,6 +70,7 @@ async function updateEmailForwardingPrefs(submitEvent) {
 }
 
 async function sendForm(formAction, formData) {
+  // eslint-disable-next-line no-useless-catch
   try {
     return fetch(formAction, {
       headers: {
@@ -92,12 +91,20 @@ async function sendForm(formAction, formData) {
 function copyToClipboardAndShowMessage(triggeringEl) {
   const aliasCopyBtn = triggeringEl;
   const previouslyCopiedAlias = document.querySelector(".alias-copied");
-  if (previouslyCopiedAlias) {
-    previouslyCopiedAlias.classList.remove("alias-copied");
+
+  if (previouslyCopiedAlias || previouslyCopiedAlias == triggeringEl) {
+    previouslyCopiedAlias.classList.remove("alias-copied", "alias-copied-fadeout");
     previouslyCopiedAlias.title = "Copy alias to clipboard";
   }
-  aliasCopyBtn.classList.add("alias-copied");
-  aliasCopyBtn.title="Alias copied to clipboard";
+
+  setTimeout(() => { 
+    triggeringEl.classList.add("alias-copied", "alias-copied-fadeout");
+    triggeringEl.title="Alias copied to clipboard";
+   }, 10);
+
+  
+  
+
   return;
 }
 
@@ -209,6 +216,38 @@ function toggleAliasCardDetailsVisibility(aliasCard) {
   window.removeEventListener("resize", resizeAliasDetails);
 }
 
+function resetBodyPadding() {
+  const header = document.querySelector("header");
+  const headerHeight = header.clientHeight;
+  document.body.style.paddingTop = headerHeight + "px";
+  return;
+}
+
+function recruitmentLogic() {
+  const recruitmentBannerLink = document.querySelector("#recruitment-banner");
+  if (!recruitmentBannerLink) {
+    return;
+  }
+
+  const recruited = document.cookie.split("; ").some((item) => item.trim().startsWith("recruited="));
+  if (recruited) {
+    recruitmentBannerLink.parentElement.remove();
+    return;
+  }
+
+  // Reset document.body padding to accomodate height of recruitment banner
+  resetBodyPadding()
+
+  // Reset document.body padding when window is resized and the 
+  // submenu becomes visible/hidden
+  window.addEventListener("resize", resetBodyPadding);
+
+  recruitmentBannerLink.addEventListener("click", () => {
+    const date = new Date();
+    date.setTime(date.getTime() + 30*24*60*60*1000)
+    document.cookie = "recruited=true; expires=" + date.toUTCString();
+  });
+}
 
 function addEventListeners() {
   document.querySelectorAll(".relay-email-card").forEach(aliasCard => {
@@ -391,6 +430,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setHeader(win.pageYOffset);
   };
   showBannersIfNecessary();
+
+  recruitmentLogic();
 });
 
 class GlocalMenu extends HTMLElement {
